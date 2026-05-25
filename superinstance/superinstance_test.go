@@ -2,7 +2,7 @@
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with in writing, software
-// distributed under the License on an "AS IS" BASIS,
+// distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
@@ -10,6 +10,7 @@
 package superinstance
 
 import (
+	"math"
 	"strings"
 	"testing"
 )
@@ -23,6 +24,11 @@ func TestReposExist(t *testing.T) {
 		"cocapn-health", "creative-engine-c", "creative-engine-rust",
 		"superinstance-ffi", "openagent", "docs", "wiki",
 		"constraint-theory-core",
+		// New repos added this session
+		"flux-algebra", "constraint-dialect", "flux-julia", "agent-operations",
+		"constraint-viz", "flux-rust", "tonal-archaeology", "fleet-conservation",
+		"dial-theory", "harmonic-atlas", "spectral-taxonomy",
+		"breeding-grounds", "polyglot-bridge",
 	}
 	for _, name := range expected {
 		repo, ok := Repos[name]
@@ -223,5 +229,170 @@ func TestRepoURL(t *testing.T) {
 	expected := "https://github.com/SuperInstance/openagent"
 	if url != expected {
 		t.Errorf("RepoURL = %q, want %q", url, expected)
+	}
+}
+
+// --- Dial Theory tests ---
+
+func TestTraditionsExist(t *testing.T) {
+	expected := []string{"Jazz", "Classical", "Gamelan", "Gagaku", "Hindustani",
+		"African Polyrhythm", "EDM", "Blues", "Hip-hop", "Latin"}
+	for _, name := range expected {
+		tr, ok := Traditions[name]
+		if !ok {
+			t.Errorf("missing tradition: %s", name)
+			continue
+		}
+		if tr.Name != name {
+			t.Errorf("tradition %s: Name mismatch", name)
+		}
+		if tr.HarmonicTension < 0 || tr.HarmonicTension > 5 {
+			t.Errorf("tradition %s: HarmonicTension %.2f out of range [0,5]", name, tr.HarmonicTension)
+		}
+		if tr.RhythmicComplexity < 0 || tr.RhythmicComplexity > 5 {
+			t.Errorf("tradition %s: RhythmicComplexity %.2f out of range [0,5]", name, tr.RhythmicComplexity)
+		}
+		if tr.SpectralDensity < 0 || tr.SpectralDensity > 5 {
+			t.Errorf("tradition %s: SpectralDensity %.2f out of range [0,5]", name, tr.SpectralDensity)
+		}
+	}
+}
+
+func TestDialDistanceIdentical(t *testing.T) {
+	jazz := Traditions["Jazz"]
+	d := DialDistance(jazz, jazz)
+	if d != 0 {
+		t.Errorf("distance from a tradition to itself should be 0, got %.4f", d)
+	}
+}
+
+func TestDialDistanceSymmetric(t *testing.T) {
+	a := Traditions["Jazz"]
+	b := Traditions["Gamelan"]
+	ab := DialDistance(a, b)
+	ba := DialDistance(b, a)
+	if math.Abs(ab-ba) > 1e-10 {
+		t.Errorf("DialDistance not symmetric: %.4f vs %.4f", ab, ba)
+	}
+}
+
+func TestDialDistancePositive(t *testing.T) {
+	for aname, a := range Traditions {
+		for bname, b := range Traditions {
+			if aname >= bname {
+				continue
+			}
+			d := DialDistance(a, b)
+			if d < 0 {
+				t.Errorf("distance between %s and %s is negative: %.4f", aname, bname, d)
+			}
+		}
+	}
+}
+
+func TestNearestTradition(t *testing.T) {
+	// A position identical to Jazz should resolve to Jazz.
+	jazz := Traditions["Jazz"]
+	if got := NearestTradition(jazz); got != "Jazz" {
+		t.Errorf("NearestTradition(Jazz position) = %q, want Jazz", got)
+	}
+	// Slightly perturbed position near Classical should still be Classical.
+	classical := Traditions["Classical"]
+	perturbed := Tradition{
+		Name:               "test",
+		HarmonicTension:    classical.HarmonicTension + 0.05,
+		RhythmicComplexity: classical.RhythmicComplexity + 0.05,
+		SpectralDensity:    classical.SpectralDensity + 0.05,
+	}
+	if got := NearestTradition(perturbed); got != "Classical" {
+		t.Errorf("NearestTradition(near Classical) = %q, want Classical", got)
+	}
+}
+
+func TestNearestTraditionReturnsKnown(t *testing.T) {
+	pos := Tradition{Name: "unknown", HarmonicTension: 2.5, RhythmicComplexity: 3.0, SpectralDensity: 2.5}
+	result := NearestTradition(pos)
+	if _, ok := Traditions[result]; !ok {
+		t.Errorf("NearestTradition returned unknown tradition %q", result)
+	}
+}
+
+// --- Fleet Conservation tests ---
+
+func TestConservationExpected(t *testing.T) {
+	gamma, h := ConservationExpected(4)
+	if gamma <= 0 || h <= 0 {
+		t.Errorf("ConservationExpected(4) = (%.4f, %.4f), both should be positive", gamma, h)
+	}
+}
+
+func TestConservationExpectedZero(t *testing.T) {
+	gamma, h := ConservationExpected(0)
+	if gamma != 0 || h != 0 {
+		t.Errorf("ConservationExpected(0) = (%.4f, %.4f), want (0, 0)", gamma, h)
+	}
+}
+
+func TestConservationTotal(t *testing.T) {
+	// γ + H should equal 1.283 - 0.159 * ln(4) for fleet size 4
+	total := ConservationTotal(4)
+	expected := 1.283 - 0.159*math.Log(4)
+	if math.Abs(total-expected) > 1e-10 {
+		t.Errorf("ConservationTotal(4) = %.6f, want %.6f", total, expected)
+	}
+}
+
+func TestConservationTotalDecreasesWithSize(t *testing.T) {
+	t1 := ConservationTotal(2)
+	t2 := ConservationTotal(10)
+	t3 := ConservationTotal(50)
+	if t1 <= t2 || t2 <= t3 {
+		t.Errorf("conservation total should decrease with fleet size: t(2)=%.4f, t(10)=%.4f, t(50)=%.4f", t1, t2, t3)
+	}
+}
+
+func TestConservationDeviation(t *testing.T) {
+	// Exactly matching expected values should give deviation ~0
+	gamma, h := ConservationExpected(4)
+	dev := ConservationDeviation(4, gamma, h)
+	if math.Abs(dev) > 0.01 {
+		t.Errorf("ConservationDeviation with exact values = %.4f, want ~0", dev)
+	}
+}
+
+func TestConservationDeviationSignificant(t *testing.T) {
+	// Wildly off values should give large deviation
+	dev := ConservationDeviation(4, 10.0, 10.0)
+	if dev < 2 {
+		t.Errorf("ConservationDeviation with extreme values = %.4f, expected > 2", dev)
+	}
+}
+
+func TestConservationDeviationZero(t *testing.T) {
+	dev := ConservationDeviation(0, 1.0, 1.0)
+	if dev != 0 {
+		t.Errorf("ConservationDeviation(0, ...) = %.4f, want 0", dev)
+	}
+}
+
+func TestNewReposInDependencyGraph(t *testing.T) {
+	graph := DependencyGraph()
+	// Verify new repos are in the graph
+	for _, name := range []string{"flux-algebra", "constraint-dialect", "flux-julia", "agent-operations"} {
+		if _, ok := graph[name]; !ok {
+			t.Errorf("new repo %s missing from dependency graph", name)
+		}
+	}
+	// flux-algebra depends on flux-tensor-midi
+	deps := graph["flux-algebra"]
+	found := false
+	for _, d := range deps {
+		if d == "flux-tensor-midi" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("flux-algebra should depend on flux-tensor-midi")
 	}
 }
